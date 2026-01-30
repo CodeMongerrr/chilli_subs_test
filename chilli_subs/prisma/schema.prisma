@@ -25,4 +25,13 @@ model Publication {
 
   @@unique([name, sourceUrl])
 }
-	
+
+model Source {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String    
+  name      String   @unique   
+  puburl    String
+
+  createdAt DateTime @default(now())
+}
+

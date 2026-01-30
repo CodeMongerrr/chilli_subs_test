@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { upsertPublication } from "../upsert/upsert_test";
+import { upsertPublication } from "./upsert/upsert_test";
 const guidelineLinks: string[] = [];
 
 var publicationName =""
