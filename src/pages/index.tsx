@@ -1,7 +1,7 @@
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { useEffect, useState, useRef } from 'react';
-
+import { prisma } from '../server/prisma';
 interface Submission {
   genre: string;
   subURL?: string;
@@ -30,46 +30,39 @@ interface HomeProps {
 }
 
 export const getServerSideProps: GetServerSideProps<HomeProps> = async (context) => {
-  const page = Number(context.query.page) || 1;
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const page = Number(context.query.page) || 1
+  const limit = 10
+  const skip = (page - 1) * limit
+
   try {
-    const res = await fetch(`${baseUrl}/api/publications?page=${page}`);
+    const [publications, totalCount] = await Promise.all([
+      prisma.publicationInfo.findMany({
+        skip,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
+      }),
+      prisma.publicationInfo.count(),
+    ])
 
-    if (!res.ok) {
-      // Handle non-200 responses
-      return {
-        props: {
-          publications: [],
-          currentPage: page,
-          totalPages: 1,
-        },
-
-        
-      };
-    }
-    
-    const data = await res.json();
-
-
-  return {
-      props: {
-        publications: Array.isArray(data.publications) ? data.publications : [],
-        currentPage: page,
-        totalPages: data.totalPages ?? 1,
-      },
-    };
-  }catch (err) {
-    console.error('Fetch error:', err);
     return {
       props: {
-        publications: [],
+        publications: publications.map(p => ({
+          ...p,
+          id: p.id.toString(),
+          submissions: p.submissions ?? [],
+          updatedAt: p.updatedAt?.toISOString() ?? null,
+        })),
         currentPage: page,
-        totalPages: 1,
+        totalPages: Math.ceil(totalCount / limit),
       },
-    };
+    }
+  } catch (err) {
+    console.error(err)
+    return {
+      props: { publications: [], currentPage: page, totalPages: 1 },
+    }
   }
-};
-
+}
 //  const data = await res.json();
 
 export default function Home({
