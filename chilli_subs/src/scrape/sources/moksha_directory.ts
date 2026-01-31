@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { upsertMokshaDirectory } from "../upsert/upsert_moksha_directory";
+import { upsertMokshaDirectory } from "../upsert/moksha_directory";
 import { prisma } from "../../server/prisma";
 import { normalizeName } from "../normalise/pubName";
 import {normalizeUrl} from "../normalise/puburl";
@@ -26,8 +26,8 @@ async function listPublications() {
   });
 
   console.log({
-    publications: publications.slice(0, 5),
-    publicationLinks: publicationLinks.slice(0, 5),
+    // publications: publications.slice(0, 5),
+    // publicationLinks: publicationLinks.slice(0, 5),
     "count pubs": publications.length,
     "count publinks": publicationLinks.length,
   });

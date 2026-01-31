@@ -5,9 +5,11 @@ import { prisma } from "../../server/prisma";
 import { normalizeUrl } from "../normalise/puburl";
 import { normalizeName } from "../normalise/pubName";
 import { normaliseDate } from "../normalise/mokshaDeadline";
-import { time } from "console";
 import { rateLimit } from "@/src/utils/rateLimiter";
 import {fetchWithRetry } from "@/src/utils/fetcherLAyer";
+import { upsertPublication } from "../upsert/moksha";
+import fs from "fs";
+import path from "path";
 
 type PublicationInfo = {
   title: string;
@@ -48,67 +50,60 @@ const defaultPublication: PublicationInfo = {
   isOpen: false,
   submissions: [],
 };
+const genres_total = new Set<string>(); // better than array
 
-const genres_total = [] as string[]; // global accumulator (unique)
 
 async function scrapePublication(url: string): Promise<PublicationInfo> {
-  // Create a fresh local publication per scrape
-  const publication: PublicationInfo = { ...defaultPublication, baseURL: url.toString() };
+  await rateLimit(1800);
+
+  const publication: PublicationInfo = {
+    ...defaultPublication,
+    baseURL: url,
+    submissions: [],
+  };
 
   const response = await fetchWithRetry(url, {
     retries: 3,
     timeout: 12_000,
   });
 
-  const html = response.data;
-  const $ = cheerio.load(html);
+  const $ = cheerio.load(response.data);
 
   publication.title = $("h1").first().text().trim();
+  publication.description = $("div.description").first().text().trim();
 
+  // Guidelines
   const guidelineLinks: string[] = [];
   $("div.guidelines a").each((_, el) => {
     const href = $(el).attr("href");
-    if (href) {
-      guidelineLinks.push(href);
-    }
+    if (href) guidelineLinks.push(href);
   });
-
-  console.log(`Found ${guidelineLinks.length} guideline links`);
 
   if (guidelineLinks.length === 2) {
     publication.guidelineURL = guidelineLinks[0];
     publication.pubURL = guidelineLinks[1];
-    console.log("✓ Both guideline and pub URLs assigned");
   } else if (guidelineLinks.length === 1) {
     publication.guidelineURL = guidelineLinks[0];
-    publication.pubURL = "";
-    console.log("⚠ Only 1 link found, assigned to guidelineURL");
-  } else {
-    console.log("✗ No guideline links found");
   }
 
-  publication.description = $("div.description").first().text().trim();
+  // Genres + submissions
+const pubGenres: string[] = [];
 
-  // Per-publication genres and submissions
-  const pubGenres: string[] = [];
-  const submissions: OpenSubmissionInfo[] = [];
+$("div.subtype-button").each((_, el) => {
+  const genre = $(el).find("h2").text().trim();
 
-  $("div.subtype-button").each((_, el) => {
-    const genre = $(el).find("h2").text().trim();
-    if (genre) {
-      pubGenres.push(genre);
+  if (genre) {
+    pubGenres.push(genre);
+    genres_total.add(genre);
+  }
 
-      // Add to global genres_total only if not already present
-      if (!genres_total.includes(genre)) {
-        genres_total.push(genre);
-      }
-    }
+  publication.genres = [...pubGenres];
+//   console.log("Genres for this publication:", publication.genres);
 
-    const isDisabled = $(el).hasClass("disabled");
 
-    if (!isDisabled) {
+    if (!$(el).hasClass("disabled")) {
       const submission: OpenSubmissionInfo = {
-        genre: genre || $(el).find("h2").text().trim(),
+        genre,
         description: $(el).find("p").first().text().trim(),
         subURL: $(el).find(".new-submission a").attr("href") || "",
         subDate: "",
@@ -116,65 +111,66 @@ async function scrapePublication(url: string): Promise<PublicationInfo> {
         subTimezone: "",
       };
 
-      // Get deadline text from the submission period element
-      const deadlineText = $(el).find(".mt-3.submission-period").first().text().trim();
+      const deadlineText = $(el)
+        .find(".mt-3.submission-period")
+        .first()
+        .text()
+        .trim();
 
       if (deadlineText) {
-        const deadline = normaliseDate(deadlineText);
-        submission.subDate = deadline.subDate;
-        submission.subTime = deadline.subTime;
-        submission.subTimezone = deadline.subTimezone;
+        const d = normaliseDate(deadlineText);
+        submission.subDate = d.subDate;
+        submission.subTime = d.subTime;
+        submission.subTimezone = d.subTimezone;
       }
 
-      submissions.push(submission);
+      publication.submissions.push(submission);
     }
   });
-
-  if (submissions.length > 0 ){
-    publication.isOpen = true;
-  }
-  
-  publication.genres = pubGenres;
-  publication.submissions = submissions;
-
-  console.log("Submissions:", submissions);
-  console.log(publication);
 
   return publication;
 }
 
 async function main() {
-  console.log("Fetching all sources from DB...\n");
   const sources = await prisma.source.findMany();
-  console.log(`Found ${sources.length} sources\n`);
 
   for (const source of sources) {
     try {
       console.log(`📄 Scraping ${source.puburl}`);
-      const pub = await scrapePublication(source.puburl);
 
-      // You can now upsert or process `pub` which includes:
-      // - `pub.genres` (only that publication's genres)
-      // - `pub.openForSubmission` (array of all open submission types)
-      // - `genres_total` (global unique list across scrapes)
+      const publication = await scrapePublication(source.puburl);
 
-      // Example log:
-      console.log(`→ ${pub.title} — genres: ${pub.genres.length}, submissions: ${pub.submissions.length}`);
+      await upsertPublication(source, publication);
 
-      // Extra human-like delay
-      await new Promise(r => setTimeout(r, 2000));
-    } catch (e) {
-      console.error(`✗ Failed for ${source.puburl}`, e);
+      console.log(
+        `✓ Saved: ${publication.title} (${publication.submissions.length} submissions)`
+      ) 
+
+
+      await new Promise((r) => setTimeout(r, 2000));
+    } catch (err) {
+      console.error(`✗ Failed for ${source.puburl}`, err);
     }
-  }
 
-  console.log("All scraped. Global genres_total count:", genres_total.length);
+     console.log("total generes", genres_total);
+     const genresPath = path.join(process.cwd(), "../genres_reference.txt");
+      fs.writeFileSync(
+    genresPath,
+    Array.from(genres_total).sort().join("\n"),
+    "utf-8"
+  );
+
+  console.log(`📁 Genres saved to ${genresPath}`);
+  }
 }
+
+
 
 main()
   .catch((e) => {
-    console.error("Script error:", e);
-    process.exit(1);
+    console.error("Fatal error:", e);
+
+
   })
   .finally(async () => {
     await prisma.$disconnect();

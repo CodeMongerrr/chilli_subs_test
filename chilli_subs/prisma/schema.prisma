@@ -35,3 +35,18 @@ model Source {
   createdAt DateTime @default(now())
 }
 
+model PublicationInfo {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  title        String?
+  baseURL      String?
+  pubURL       String?
+  guidelineURL String?
+  description  String?
+  genres       String[]
+  submissions  Json?      // store array of submission objects: { genre, description, subURL, subDate, subTime, subTimezone }
+  sourceUrl    String
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([name, sourceUrl])
+}
