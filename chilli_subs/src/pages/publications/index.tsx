@@ -1,10 +1,12 @@
 export async function getServerSideProps() {
-  const res = await fetch("http://localhost:3000/api/publications");
+  // Use an environment variable, falling back to localhost for dev
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  
+  const res = await fetch(`${baseUrl}/api/publications`);
   const publications = await res.json();
 
   return { props: { publications } };
 }
-
 export default function Publications({ publications }: any) {
   return (
     <div>
