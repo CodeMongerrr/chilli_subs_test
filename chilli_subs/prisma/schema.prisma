@@ -46,6 +46,7 @@ model PublicationInfo {
   genres       String[]
   submissions  Json?      // store array of submission objects: { genre, description, subURL, subDate, subTime, subTimezone }
   sourceUrl    String
+  isOpen       Boolean?
   updatedAt    DateTime   @updatedAt
 
   @@unique([name, sourceUrl])

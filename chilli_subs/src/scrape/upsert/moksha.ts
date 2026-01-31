@@ -1,10 +1,15 @@
 import { prisma } from "../../server/prisma";
 import { normalizeName } from "../normalise/pubName";
+import { normalizeGenre } from "../normalise/genres";
 
 type SourceLike = { puburl: string; name?: string; key?: string };
 
 export async function upsertPublication(source: SourceLike, publication: any) {
-  const name = normalizeName(publication.title || publication.name || publication.baseURL || source.name || "unknown");
+  const name = normalizeName(publication.title || publication.name || source.name || "unknown");
+  const genres = publication.genres || [];
+  const normalizedGenres = genres.map((genre: string) => normalizeGenre(genre));
+  publication.genres = normalizedGenres;
+
 
   try {
     const result = await prisma.publicationInfo.upsert({
@@ -19,7 +24,7 @@ export async function upsertPublication(source: SourceLike, publication: any) {
         genres: publication.genres ?? [],
         submissions: publication.submissions ?? [],
         sourceUrl: source.puburl,
-        // isOpen: publication.isOpen ?? false,
+        isOpen: publication.isOpen ?? false,
         updatedAt: new Date(),
       },
            update: {
@@ -30,7 +35,7 @@ export async function upsertPublication(source: SourceLike, publication: any) {
         description: publication.description ?? undefined,
         genres: publication.genres ?? undefined,
         submissions: publication.submissions ?? undefined,
-        // isOpen: publication.isOpen ?? false,
+        isOpen: publication.isOpen ?? false,
         updatedAt: new Date(),
       },
     });

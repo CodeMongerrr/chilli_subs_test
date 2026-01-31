@@ -11,6 +11,7 @@ import { upsertPublication } from "../upsert/moksha";
 import fs from "fs";
 import path from "path";
 
+
 type PublicationInfo = {
   title: string;
   baseURL: string;
@@ -125,7 +126,12 @@ $("div.subtype-button").each((_, el) => {
       }
 
       publication.submissions.push(submission);
+      if (publication.submissions.length > 0) {
+      publication.isOpen = true;
     }
+    }
+
+    
   });
 
   return publication;
@@ -153,14 +159,14 @@ async function main() {
     }
 
      console.log("total generes", genres_total);
-     const genresPath = path.join(process.cwd(), "../genres_reference.txt");
-      fs.writeFileSync(
-    genresPath,
-    Array.from(genres_total).sort().join("\n"),
-    "utf-8"
-  );
+//      const genresPath = path.join(process.cwd(), "../genres_reference.txt");
+//       fs.writeFileSync(
+//     genresPath,
+//     Array.from(genres_total).sort().join("\n"),
+//     "utf-8"
+//   );
 
-  console.log(`📁 Genres saved to ${genresPath}`);
+//   console.log(`📁 Genres saved to ${genresPath}`);
   }
 }
 
