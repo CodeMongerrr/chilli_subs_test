@@ -19,6 +19,7 @@ export async function upsertPublication(source: SourceLike, publication: any) {
         genres: publication.genres ?? [],
         submissions: publication.submissions ?? [],
         sourceUrl: source.puburl,
+        // isOpen: publication.isOpen ?? false,
         updatedAt: new Date(),
       },
            update: {
@@ -29,6 +30,7 @@ export async function upsertPublication(source: SourceLike, publication: any) {
         description: publication.description ?? undefined,
         genres: publication.genres ?? undefined,
         submissions: publication.submissions ?? undefined,
+        // isOpen: publication.isOpen ?? false,
         updatedAt: new Date(),
       },
     });
