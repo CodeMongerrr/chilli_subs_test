@@ -4,7 +4,7 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: 'chilli_subs/src',
+        source: '/src',
         destination: '/', 
       },
     ]
